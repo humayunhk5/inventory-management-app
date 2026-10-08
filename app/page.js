@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createLicense, getDaysRemaining, getLicenseExpiryDate } from './license-utils';
+import '../styles/licensing.css';
 
 const initialProducts = [
   { id: 1, name: 'Rice 25kg', category: 'Groceries', sku: 'RICE-001', stock: 42, unit: 'Bag', buyPrice: 1400, sellPrice: 1900, location: 'Warehouse A' },
@@ -38,7 +40,34 @@ const initialPlans = [
   { name: 'Scale', price: 149, feature: 'For multiple branches' },
 ];
 
-const tabs = ['Dashboard', 'Products', 'Sales', 'Purchases', 'Customers', 'Suppliers', 'Reports', 'Billing', 'Settings'];
+const initialLicenses = [
+  {
+    licenseKey: 'BIZ-5555-A7X9K2-26',
+    phoneNumber: '+966500111222',
+    businessName: 'Tariq Store',
+    email: 'tariq@example.com',
+    createdDate: '2026-09-15T10:30:00Z',
+    expiryDate: '2027-09-15T10:30:00Z',
+    planType: 'yearly',
+    planPrice: 9,
+    status: 'active',
+    paymentId: 'pay_001',
+  },
+  {
+    licenseKey: 'BIZ-3344-M4N8P5-26',
+    phoneNumber: '+966500333444',
+    businessName: 'Blue Mart',
+    email: 'blue@example.com',
+    createdDate: '2026-08-20T14:45:00Z',
+    expiryDate: '2027-08-20T14:45:00Z',
+    planType: 'yearly',
+    planPrice: 9,
+    status: 'active',
+    paymentId: 'pay_002',
+  },
+];
+
+const tabs = ['Dashboard', 'Products', 'Sales', 'Purchases', 'Customers', 'Suppliers', 'Reports', 'Billing', 'Licensing', 'Settings'];
 
 export default function Home() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -60,6 +89,8 @@ export default function Home() {
   const [customers, setCustomers] = useState(initialCustomers);
   const [suppliers, setSuppliers] = useState(initialSuppliers);
   const [plans] = useState(initialPlans);
+  const [licenses, setLicenses] = useState(initialLicenses);
+  const [newLicenseForm, setNewLicenseForm] = useState({ phoneNumber: '', businessName: '', email: '' });
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -85,6 +116,8 @@ export default function Home() {
         if (data.purchases) setPurchases(data.purchases);
         if (data.customers) setCustomers(data.customers);
         if (data.suppliers) setSuppliers(data.suppliers);
+        if (data.company) setCompany(data.company);
+        if (data.licenses) setLicenses(data.licenses);
       } catch (error) {
         console.error('Failed parsing local data', error);
       }
@@ -92,9 +125,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const payload = { products, sales, purchases, customers, suppliers, company };
+    const payload = { products, sales, purchases, customers, suppliers, company, licenses };
     localStorage.setItem('bizstock-app-data', JSON.stringify(payload));
-  }, [products, sales, purchases, customers, suppliers, company]);
+  }, [products, sales, purchases, customers, suppliers, company, licenses]);
 
   const totalInventoryValue = useMemo(
     () => products.reduce((sum, item) => sum + item.stock * item.buyPrice, 0),
@@ -106,11 +139,56 @@ export default function Home() {
   const totalSales = sales.reduce((sum, item) => sum + item.amount, 0);
   const totalPurchases = purchases.reduce((sum, item) => sum + item.amount, 0);
   const totalProfit = totalSales - totalPurchases;
+  const totalRevenue = licenses.filter((license) => license.status === 'active').length * 9;
+  const activeLicenses = licenses.filter((license) => license.status === 'active').length;
 
   const handleAuthSubmit = (event) => {
     event.preventDefault();
     if (!authForm.email || !authForm.password) return;
     setLoggedIn(true);
+  };
+
+  const handleCreateLicense = (event) => {
+    event.preventDefault();
+
+    if (!newLicenseForm.phoneNumber || !newLicenseForm.businessName || !newLicenseForm.email) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    const license = createLicense({
+      ...newLicenseForm,
+      paymentId: `pay_${Date.now()}`,
+    });
+
+    setLicenses((current) => [license, ...current]);
+    setNewLicenseForm({ phoneNumber: '', businessName: '', email: '' });
+    setActiveTab('Licensing');
+    alert(`License created: ${license.licenseKey}`);
+  };
+
+  const revokeLicense = (licenseKey) => {
+    setLicenses((current) =>
+      current.map((license) =>
+        license.licenseKey === licenseKey ? { ...license, status: 'revoked' } : license
+      )
+    );
+  };
+
+  const renewLicense = (licenseKey) => {
+    setLicenses((current) =>
+      current.map((license) => {
+        if (license.licenseKey === licenseKey) {
+          return {
+            ...license,
+            createdDate: new Date().toISOString(),
+            expiryDate: getLicenseExpiryDate().toISOString(),
+            status: 'active',
+          };
+        }
+        return license;
+      })
+    );
   };
 
   const addProduct = (event) => {
@@ -501,6 +579,144 @@ export default function Home() {
     </div>
   );
 
+  const renderLicensing = () => (
+    <div className="licensing-page">
+      <header className="licensing-header">
+        <div>
+          <h1>License Management</h1>
+          <p>Manage yearly $9 licenses for BizStock users</p>
+        </div>
+      </header>
+
+      <div className="licensing-stats">
+        <div className="stat-box">
+          <span>Active Licenses</span>
+          <strong>{activeLicenses}</strong>
+        </div>
+        <div className="stat-box">
+          <span>Annual Revenue</span>
+          <strong>${totalRevenue}</strong>
+        </div>
+        <div className="stat-box">
+          <span>Revoked Licenses</span>
+          <strong>{licenses.filter((license) => license.status === 'revoked').length}</strong>
+        </div>
+        <div className="stat-box">
+          <span>Total Users</span>
+          <strong>{licenses.length}</strong>
+        </div>
+      </div>
+
+      <div className="licensing-content">
+        <div className="form-section card">
+          <h3>Create New License</h3>
+          <p className="description">When payment is received, generate a new license automatically.</p>
+
+          <form onSubmit={handleCreateLicense}>
+            <div className="form-group">
+              <label>Phone Number</label>
+              <input
+                type="tel"
+                placeholder="+966 50 XXXX XXXX"
+                value={newLicenseForm.phoneNumber}
+                onChange={(e) => setNewLicenseForm({ ...newLicenseForm, phoneNumber: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Business Name</label>
+              <input
+                type="text"
+                placeholder="Your shop or business name"
+                value={newLicenseForm.businessName}
+                onChange={(e) => setNewLicenseForm({ ...newLicenseForm, businessName: e.target.value })}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Email Address</label>
+              <input
+                type="email"
+                placeholder="user@example.com"
+                value={newLicenseForm.email}
+                onChange={(e) => setNewLicenseForm({ ...newLicenseForm, email: e.target.value })}
+              />
+            </div>
+
+            <div className="payment-box">
+              <div className="payment-item">
+                <span>Annual Plan</span>
+                <strong>$9.00</strong>
+              </div>
+              <div className="payment-item">
+                <span>Payment Method</span>
+                <span className="badge">STRIPE</span>
+              </div>
+            </div>
+
+            <button type="submit" className="primary-btn full-width">Generate License & Process Payment</button>
+          </form>
+        </div>
+
+        <div className="licenses-section card">
+          <h3>Active Licenses</h3>
+          <p className="description">All licenses, their status, and expiry dates</p>
+
+          <div className="licenses-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>License Key</th>
+                  <th>Business</th>
+                  <th>Phone</th>
+                  <th>Created</th>
+                  <th>Expires</th>
+                  <th>Days Left</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {licenses.map((license) => {
+                  const daysLeft = getDaysRemaining(license.expiryDate);
+                  return (
+                    <tr key={license.licenseKey} className={`license-row status-${license.status}`}>
+                      <td className="license-key"><code>{license.licenseKey}</code></td>
+                      <td>{license.businessName}</td>
+                      <td>{license.phoneNumber}</td>
+                      <td>{new Date(license.createdDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                      <td>{new Date(license.expiryDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                      <td>
+                        <span className={`days-badge ${daysLeft < 30 ? 'warning' : 'normal'}`}>
+                          {daysLeft} days
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${license.status}`}>
+                          {license.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="actions">
+                        {license.status === 'active' ? (
+                          <>
+                            <button className="btn-renew" onClick={() => renewLicense(license.licenseKey)}>Renew</button>
+                            <button className="btn-revoke" onClick={() => revokeLicense(license.licenseKey)}>Revoke</button>
+                          </>
+                        ) : (
+                          <button className="btn-small" disabled>Revoked</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderSettings = () => (
     <div className="settings-grid">
       <div className="card">
@@ -549,6 +765,7 @@ export default function Home() {
     if (activeTab === 'Suppliers') return renderSuppliers();
     if (activeTab === 'Reports') return renderReports();
     if (activeTab === 'Billing') return renderBilling();
+    if (activeTab === 'Licensing') return renderLicensing();
     if (activeTab === 'Settings') return renderSettings();
     return renderDashboard();
   };
