@@ -38,9 +38,21 @@ const initialPlans = [
   { name: 'Scale', price: 149, feature: 'For multiple branches' },
 ];
 
-const tabs = ['Dashboard', 'Products', 'Sales', 'Purchases', 'Customers', 'Suppliers', 'Reports', 'Billing'];
+const tabs = ['Dashboard', 'Products', 'Sales', 'Purchases', 'Customers', 'Suppliers', 'Reports', 'Billing', 'Settings'];
 
 export default function Home() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [authForm, setAuthForm] = useState({ email: 'admin@bizstock.app', password: 'admin123' });
+  const [company, setCompany] = useState({
+    name: 'Northwind Mart',
+    owner: 'Humayun Khan',
+    type: 'Retail & Grocery',
+    location: 'Dubai',
+    currency: 'USD',
+    plan: 'Growth',
+  });
+
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [products, setProducts] = useState(initialProducts);
   const [sales, setSales] = useState(initialSales);
@@ -80,9 +92,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const payload = { products, sales, purchases, customers, suppliers };
+    const payload = { products, sales, purchases, customers, suppliers, company };
     localStorage.setItem('bizstock-app-data', JSON.stringify(payload));
-  }, [products, sales, purchases, customers, suppliers]);
+  }, [products, sales, purchases, customers, suppliers, company]);
 
   const totalInventoryValue = useMemo(
     () => products.reduce((sum, item) => sum + item.stock * item.buyPrice, 0),
@@ -94,6 +106,12 @@ export default function Home() {
   const totalSales = sales.reduce((sum, item) => sum + item.amount, 0);
   const totalPurchases = purchases.reduce((sum, item) => sum + item.amount, 0);
   const totalProfit = totalSales - totalPurchases;
+
+  const handleAuthSubmit = (event) => {
+    event.preventDefault();
+    if (!authForm.email || !authForm.password) return;
+    setLoggedIn(true);
+  };
 
   const addProduct = (event) => {
     event.preventDefault();
@@ -236,7 +254,7 @@ export default function Home() {
           <li>Net profit: ${totalProfit.toLocaleString()}</li>
           <li>Average product stock: {Math.round(products.reduce((sum, item) => sum + item.stock, 0) / Math.max(products.length, 1))}</li>
           <li>Top category: {products[0]?.category || 'General'}</li>
-          <li>Subscription status: Active</li>
+          <li>Subscription: {company.plan || 'Growth'} plan active</li>
         </ul>
       </div>
     </div>
@@ -483,6 +501,45 @@ export default function Home() {
     </div>
   );
 
+  const renderSettings = () => (
+    <div className="settings-grid">
+      <div className="card">
+        <div className="card-header">
+          <h3>Business Details</h3>
+        </div>
+        <div className="form-grid settings-form">
+          <input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} placeholder="Business name" />
+          <input value={company.owner} onChange={(e) => setCompany({ ...company, owner: e.target.value })} placeholder="Owner name" />
+          <input value={company.type} onChange={(e) => setCompany({ ...company, type: e.target.value })} placeholder="Business type" />
+          <input value={company.location} onChange={(e) => setCompany({ ...company, location: e.target.value })} placeholder="Business location" />
+          <input value={company.currency} onChange={(e) => setCompany({ ...company, currency: e.target.value })} placeholder="Currency" />
+          <select value={company.plan} onChange={(e) => setCompany({ ...company, plan: e.target.value })}>
+            <option>Starter</option>
+            <option>Growth</option>
+            <option>Scale</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h3>Account Status</h3>
+        </div>
+        <div className="account-box">
+          <div className="status-pill">{company.plan} Plan</div>
+          <h4>{company.name}</h4>
+          <p>{authForm.email}</p>
+          <ul>
+            <li>Multi-device access</li>
+            <li>Inventory dashboard</li>
+            <li>Sales & purchase tracking</li>
+            <li>Report exports</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+
   const switchRender = () => {
     if (activeTab === 'Dashboard') return renderDashboard();
     if (activeTab === 'Products') return renderProducts();
@@ -492,8 +549,48 @@ export default function Home() {
     if (activeTab === 'Suppliers') return renderSuppliers();
     if (activeTab === 'Reports') return renderReports();
     if (activeTab === 'Billing') return renderBilling();
+    if (activeTab === 'Settings') return renderSettings();
     return renderDashboard();
   };
+
+  if (!loggedIn) {
+    return (
+      <div className="auth-shell">
+        <div className="auth-card">
+          <div className="auth-badge">BizStock</div>
+          <h1>{authMode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
+          <p>Professional inventory management for retail shops, restaurants, malls, and warehouses.</p>
+
+          <form onSubmit={handleAuthSubmit} className="auth-form">
+            <input
+              value={authForm.email}
+              onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+              placeholder="Email address"
+              type="email"
+            />
+            <input
+              value={authForm.password}
+              onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+              placeholder="Password"
+              type="password"
+            />
+
+            <button className="primary-btn full-width" type="submit">
+              {authMode === 'login' ? 'Login to Dashboard' : 'Create Account'}
+            </button>
+          </form>
+
+          <button className="ghost-btn full-width auth-toggle" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
+            {authMode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Login'}
+          </button>
+
+          <div className="demo-box">
+            Demo access: admin@bizstock.app / admin123
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -501,8 +598,8 @@ export default function Home() {
         <div className="brand-box">
           <div className="brand-mark">B</div>
           <div>
-            <strong>BizStock</strong>
-            <span>Inventory SaaS</span>
+            <strong>{company.name}</strong>
+            <span>{company.type}</span>
           </div>
         </div>
 
@@ -526,7 +623,7 @@ export default function Home() {
             <h1>Inventory Management Dashboard</h1>
           </div>
           <div className="top-actions">
-            <button className="ghost-btn">Export</button>
+            <button className="ghost-btn" onClick={() => setLoggedIn(false)}>Logout</button>
             <button className="primary-btn">Add Invoice</button>
           </div>
         </header>
